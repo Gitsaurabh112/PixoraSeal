@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PixoraSeal - Real Seal</title>
+<style>
+body{font-family:system-ui,sans-serif;background:#0b1220;color:#fff;padding:16px;margin:0}
+.card{background:#111c33;border:1px solid #26345c;border-radius:16px;padding:16px;max-width:520px;margin:auto}
+h1{margin:0;font-size:22px} p{color:#aeb9d6;font-size:14px}
+button{background:#22c55e;color:#000;border:0;padding:12px 16px;border-radius:10px;font-weight:700;width:100%;margin-top:10px}
+button:disabled{opacity:.5}
+img{width:100%;border-radius:12px;margin-top:12px;display:none}
+#log{background:#000;border-radius:10px;padding:10px;font-family:monospace;font-size:12px;white-space:pre-wrap;margin-top:12px;min-height:80px}
+.box{background:#0a2e1a;border:1px solid #22c55e;border-radius:10px;padding:12px;margin-top:12px;display:none;word-break:break-all;font-size:13px}
+.small{background:#1e293b;color:#fff}
+</style></head>
+<body><div class="card">
+<h1>PixoraSeal - Real Seal</h1>
+<p>Server pe seal hoga. Browser demo nahi hai.</p>
+<input type="file" id="file" accept="image/*">
+<img id="prev">
+<div id="info"></div>
+<button id="sealBtn" disabled>Seal with PixoraSeal Server</button>
+<div id="log">Ready. Photo chuno.</div>
+<div id="result" class="box"></div>
+<button id="copyBtn" class="small" style="display:none">Copy Manifest</button>
+<button id="certBtn" class="small" style="display:none">Open Certificate</button>
+</div>
+<script>
+let dataUrl="", fileName="", resultData=null;
+const logEl=document.getElementById('log');
+function log(t){ logEl.textContent += "\n" + t; }
+document.getElementById('file').addEventListener('change', e=>{
+  const f=e.target.files[0]; if(!f) return;
+  fileName=f.name; logEl.textContent="File: "+f.name+" - "+(f.size/1024).toFixed(1)+" KB";
+  const r=new FileReader();
+  r.onload=()=>{ dataUrl=r.result; const img=document.getElementById('prev'); img.src=dataUrl; img.style.display='block'; document.getElementById('sealBtn').disabled=false; document.getElementById('info').textContent="Ready to seal on server"; };
+  r.readAsDataURL(f);
+});
+document.getElementById('sealBtn').addEventListener('click', async ()=>{
+  const btn=document.getElementById('sealBtn'); btn.disabled=true; btn.textContent="Sealing...";
+  log("Sending to PixoraSeal server...");
+  try{
+    const res=await fetch('/api/seal-image',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:fileName,image:dataUrl})});
+    const data=await res.json();
+    if(!data.ok) throw new Error(data.error||"Server error");
+    resultData=data;
+    log("Server hash complete - "+data.hash.slice(0,16)+"...");
+    log("Signed by PixoraSeal server - claim "+data.claim);
+    log("Sealed - claim "+data.claim);
+    const box=document.getElementById('result');
+    box.style.display='block';
+    box.innerHTML="<b>✓ Sealed by Server</b><br><b>Claim:</b> "+data.claim+"<br><b>Hash:</b> "+data.hash+"<br><b>Size:</b> "+data.size+" bytes<br><b>Issued:</b> "+data.issuedAt+"<br><b>Signature:</b> "+(data.signature?data.signature.slice(0,40)+"...":"No signature - key missing")+"<br><br><b>Manifest:</b><pre style='white-space:pre-wrap'>"+JSON.stringify(data.manifest,null,2)+"</pre>";
+    document.getElementById('copyBtn').style.display='block';
+    document.getElementById('certBtn').style.display='block';
+    btn.textContent="Sealed ✓";
+  }catch(e){ log("Error: "+e.message); btn.disabled=false; btn.textContent="Seal with PixoraSeal Server"; }
+});
+document.getElementById('copyBtn').addEventListener('click', ()=>{
+  if(resultData) navigator.clipboard.writeText(JSON.stringify(resultData.manifest,null,2)).then(()=>alert("Manifest copied"));
+});
+document.getElementById('certBtn').addEventListener('click', ()=>{
+  if(!resultData) return;
+  const html="<html><body style='font-family:system-ui;padding:24px'><h1>PixoraSeal Certificate</h1><p>Claim: <b>"+resultData.claim+"</b></p><p>File: "+resultData.filename+"</p><p>SHA-256: "+resultData.hash+"</p><p>Issued: "+resultData.issuedAt+"</p><p>Issuer: PixoraSeal</p><p>Signature: "+(resultData.signature||"N/A")+"</p><p style='color:green'><b>✓ Server-Sealed Proof</b></p></body></html>";
+  const w=window.open('','_blank'); w.document.write(html); w.document.close();
+});
+</script></body></html>
