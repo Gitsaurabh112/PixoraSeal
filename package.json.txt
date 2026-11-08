@@ -1,0 +1,8 @@
+{
+  "name": "pixoraseal",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "c2pa-node": "latest"
+  }
+}
